@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40" role="img" aria-label="跨院影像互认调阅路由系统">
+  <rect x="0" y="0" width="160" height="40" rx="8" fill="#0F766E"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
+    <rect x="12" y="12" width="14" height="16" rx="2"/>
+    <rect x="34" y="12" width="14" height="16" rx="2"/>
+    <path d="M26 20h8"/>
+    <path d="M48 20h6"/>
+  </g>
+  <text x="62" y="25" fill="#FFFFFF" font-family="-apple-system, PingFang SC, Microsoft YaHei, sans-serif" font-size="12">跨院影像互认</text>
+</svg>

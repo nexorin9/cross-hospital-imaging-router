@@ -1,0 +1,61 @@
+target/
+build/
+out/
+dist/
+coverage/
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+
+# Logs / Temp
+logs/
+*.log
+tmp/
+temp/
+.cache/
+*.tmp
+*.temp
+
+# Python caches
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Maven
+.m2/
+.mvn/wrapper/maven-wrapper.jar
+
+# Env / Secrets
+.env
+.env.local
+*.env
+
+# Data / runtime
+data/
+*.pid
+
+# Round metadata (must NOT enter project)
+score.json
+round_*/score.json
+
+# Test outputs
+test-output/
+allure-results/
+
+# 下载 / 解压出来的临时样例包（可用 generate-fixtures.sh 重新生成）。
+# src/test/fixtures/samples-* 里那几个自造示例 UID 的小文件是集成测试的必需输入，
+# 必须随仓库一起发布；早期把它们整目录排除会让新克隆跑不了协议集成测试。
+scripts/bundled-fixtures/*.zip
+src/test/fixtures/samples-dicom/*.zip
+src/test/fixtures/samples-hl7/*.zip
+src/test/fixtures/samples-wado/*.zip

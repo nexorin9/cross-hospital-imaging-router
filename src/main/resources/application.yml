@@ -1,0 +1,197 @@
+spring:
+  application:
+    name: cross-hospital-imaging-router
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/imaging_router}
+    username: ${DATABASE_USER:imaging}
+    password: ${DATABASE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 16
+      minimum-idle: 2
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 1800000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+  compression:
+    enabled: true
+  tomcat:
+    threads:
+      max: 200
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: cross-hospital-imaging-router
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    # 明确输出 OpenAPI 3.1（springdoc 2.5 默认 3.0.1）；task 33 的文档契约测试按 3.1.0 校验
+    version: OPENAPI_3_1
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    # 院内信息科打开的默认视图：按 tag 折叠、显示请求耗时、展示扩展字段
+    docExpansion: none
+    displayRequestDuration: true
+    showExtensions: true
+
+app:
+  name: cross-hospital-imaging-router
+  version: 0.1.0
+  buildTime: ${BUILD_TIME:2026-10-20T00:00:00Z}
+
+dicom:
+  # DicomConfigProps 是扁平绑定（prefix=dicom）：字段名 localAet / localHost /
+  # bindPort / remoteConnectTimeoutMs / tlsProtocols / tlsCipherSuites。
+  # 早期写成 dicom.local.aet 这类嵌套块不会绑定，LOCAL_AET 等环境变量会静默失效，
+  # 且类里那个 20 字符默认 AET 违反 DICOM「AE Title ≤ 16 字符」约束，
+  # 在 A-ASSOCIATE-RQ 阶段被 dcm4che 以 `callingAET: ...` 拒掉。
+  # 任务 39 的真实运行截图采集把这条漏网之鱼捞了出来，这里改成真正生效的扁平键。
+  local-aet: ${LOCAL_AET:IMAGER}
+  local-host: ${LOCAL_AET_HOST:0.0.0.0}
+  bind-port: ${LOCAL_AET_BIND_PORT:-1}
+  remote-connect-timeout-ms: ${DICOM_REMOTE_CONNECT_TIMEOUT_MS:15000}
+  tls-protocols: ${DICOM_TLS_PROTOCOLS:TLSv1.3,TLSv1.2}
+  tls-cipher-suites: ${DICOM_TLS_CIPHER_SUITES:}
+  peers-json-path: ${DICOM_PEERS_JSON_PATH:./config/peers.json}
+
+# 路由执行预算（对应 RoutingConfigProps，prefix=routing）
+routing:
+  query-timeout-ms: ${ROUTING_QUERY_TIMEOUT_MS:30000}
+  retrieve-timeout-ms: ${ROUTING_RETRIEVE_TIMEOUT_MS:120000}
+  store-timeout-ms: ${ROUTING_STORE_TIMEOUT_MS:60000}
+  max-instances-per-study: ${ROUTING_MAX_INSTANCES_PER_STUDY:5000}
+  max-pdu-length: 16384
+  implementation-class-uid: ${DICOM_IMPLEMENTATION_CLASS_UID:1.2.826.0.1.3680043.10.7777.1.13}
+  # 本院 PACS = C-STORE 的写入目标（Called AE Title / host / port）。凭据位全部走环境变量。
+  local-pacs-aet: ${LOCAL_PACS_AET:LOCAL_PACS}
+  local-pacs-host: ${LOCAL_PACS_HOST:127.0.0.1}
+  local-pacs-port: ${LOCAL_PACS_PORT:11112}
+  # 写入侧只提议未压缩传输语法（没挂压缩编解码器时提议 JPEG 2000 会让整批 C-STORE 失败），
+  # 理由详见 RoutingConfigProps#localStoreTransferSyntaxes 的注释。
+  local-store-transfer-syntaxes:
+    - 1.2.840.10008.1.2.1
+    - 1.2.840.10008.1.2
+
+wado:
+  base-url-template: ${WADO_RS_URL_TEMPLATE:http://127.0.0.1:8081/wado/studies/{studyUid}}
+  bearer-token: ${WADO_RS_BEARER_TOKEN:}
+  connect-timeout-ms: 5000
+  read-timeout-ms: 30000
+  max-multipart-bytes: 5368709120
+  user-agent: cross-hospital-imaging-router/0.1
+  max-retries: 3
+  capacity:
+    cache-mb-used: 0
+
+hl7:
+  trigger:
+    port: ${HL7_TRIGGER_PORT:6661}
+    bind-host: ${HL7_TRIGGER_BIND_HOST:0.0.0.0}
+    max-frame-bytes: ${HL7_MAX_FRAME_BYTES:4194304}
+    idle-timeout-ms: ${HL7_IDLE_TIMEOUT_MS:30000}
+    # 触发通道常被 HIS 长连复用，空闲默认只告警不断连；仅院内防火墙清理长连接时置 true
+    close-on-idle: ${HL7_CLOSE_ON_IDLE:false}
+    worker-threads: ${HL7_WORKER_THREADS:0}
+    backlog: ${HL7_BACKLOG:128}
+    charset: ${HL7_CHARSET:UTF-8}
+    # MLLP2 = 收帧回 ACK（院内 HIS 常规配置）；MLLP1 = 不回 ACK
+    release-mode: ${HL7_MLLP_RELEASE_MODE:MLLP2}
+  local-application: ${HL7_LOCAL_APPLICATION:IMAGER}
+  local-facility: ${HL7_LOCAL_FACILITY:LOCAL_HOSP}
+  segment-mappings: classpath:hl7/segment-mappings.yml
+  # HL7 触发报文死信告警：URL 走环境变量（钉钉 / 企业微信 / 院内自建告警网关均可）。
+  # 留空 = 死信只落库不推告警，不影响触发通道本身工作。
+  dead-letter:
+    alert-webhook-url: ${HL7_DEADLETTER_ALERT_WEBHOOK_URL:}
+    alert-timeout-ms: ${HL7_DEADLETTER_ALERT_TIMEOUT_MS:3000}
+
+notification:
+  # HIS 工单回调地址（webhook URL 常带 token，只从环境变量读，不落日志与死信表）
+  his-webhook-url: ${HIS_WEBHOOK_URL:}
+  his-webhook-timeout-ms: ${HIS_WEBHOOK_TIMEOUT_MS:5000}
+  retry-on-failure: true
+  max-retries: ${HIS_WEBHOOK_MAX_RETRIES:3}
+  backoff-ms: ${HIS_WEBHOOK_BACKOFF_MS:200}
+  # 告警网关（钉钉 / 企业微信 / 院内自建）；留空 = 只落死信与日志
+  alert-webhook-url: ${NOTIFICATION_ALERT_WEBHOOK_URL:}
+  target-pacs-aet: ${LOCAL_PACS_AET:LOCAL_PACS}
+
+# 本院 PACS 影像缓存（task 32）：超容量按 LRU 淘汰，过期项每小时巡检一次
+imaging:
+  cache:
+    max-cache-mb: ${PACS_CACHE_MAX_MB:5120}
+    ttl-hours: ${PACS_CACHE_TTL_HOURS:24}
+    eviction-interval-ms: ${PACS_CACHE_EVICTION_INTERVAL_MS:3600000}
+
+dlq:
+  # 已处置死信保留 30 天后自动清理；未处置的死信永不自动清理。
+  retention-days: ${DLQ_RETENTION_DAYS:30}
+  # 告警外发地址（钉钉 / 企业微信 / 院内自建告警网关均可）；留空 = 只落库不推告警。
+  alert-webhook-url: ${DLQ_ALERT_WEBHOOK_URL:}
+  # 同一失败码的告警冷却窗口（分钟）：一次外院断网会产生几十条同码死信，
+  # 不做抑制的话值班手机会被同一件事震几十遍。
+  alert-cooldown-minutes: ${DLQ_ALERT_COOLDOWN_MINUTES:10}
+  alert-timeout-ms: ${DLQ_ALERT_TIMEOUT_MS:3000}
+  max-page-size: 200
+  retention-cleanup-cron: "${DLQ_RETENTION_CLEANUP_CRON:0 30 3 * * *}"
+
+# 任务级重试与卡死巡检（task 21）
+# 重试预算（max_retries / backoff_ms）逐节点写在 imaging_peers 准入表里；
+# 这里的三个值是「整条任务」层面的节奏参数。
+task:
+  retry:
+    # 卡死判定阈值：任务停在 querying 超过这么久就判定为卡死
+    stuck-threshold-ms: ${TASK_STUCK_THRESHOLD_MS:300000}
+    # 卡死巡检周期（5 分钟扫一次表）
+    stuck-scan-interval-ms: ${TASK_STUCK_SCAN_INTERVAL_MS:300000}
+    # 容器启动后的首次巡检延迟（避开启动高峰，给协议栈一点暖机时间）
+    stuck-initial-delay-ms: ${TASK_STUCK_INITIAL_DELAY_MS:60000}
+
+model:
+  base-url: ${MODEL_BASE_URL:}
+  api-key: ${MODEL_API_KEY:}
+  model: ${MODEL_NAME:gpt-4o-mini}
+  timeout-ms: ${MODEL_TIMEOUT_MS:5000}
+  max-retries: 1
+  response-format: json_schema
+  fallback:
+    enabled: ${MODEL_FALLBACK_ENABLED:true}
+    # 规则词典（模态映射 / 兜底文案 / 互认判据）—— 信息科可直接改这个文件，改完重启即生效
+    templates-path: ${MODEL_FALLBACK_TEMPLATES_PATH:classpath:hl7/segment-mappings.yml}
+    # 规则模板骨架（输出字段与渲染指令）
+    rule-templates-path: ${MODEL_FALLBACK_RULE_TEMPLATES_PATH:classpath:hl7/rule-templates.json}

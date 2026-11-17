@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  task 37 结构化日志。
+
+  生产 / 本地运行：一行一个 JSON 事件，MDC 里的 traceId / spanId / who / taskId
+  作为独立字段输出（TaskContext 负责放），日志采集侧无需再写 grok 正则去抠
+  "taskId=xxx" 这种拼接串。
+
+  测试 profile：仍用纯文本，避免 600+ 用例把控制台刷成几万行 JSON。
+-->
+<configuration>
+
+    <springProfile name="!test">
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp>
+                        <fieldName>@timestamp</fieldName>
+                    </timestamp>
+                    <version/>
+                    <logLevel/>
+                    <loggerName/>
+                    <threadName/>
+                    <message/>
+                    <mdc/>
+                    <stackTrace/>
+                </providers>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="test">
+        <appender name="TEXT_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <root level="WARN">
+            <appender-ref ref="TEXT_CONSOLE"/>
+        </root>
+    </springProfile>
+
+</configuration>

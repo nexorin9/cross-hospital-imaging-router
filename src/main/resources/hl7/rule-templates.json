@@ -1,0 +1,54 @@
+{
+  "_comment": "规则模板兜底载荷骨架（task 27）。本文件只说『哪个输出字段用哪条规则、从哪个输入取值』；词典（模态→部位映射、兜底文案、互认判据）放在 hl7/segment-mappings.yml 的 model-fallback 段。模型可用时走模型，不可用时由 RuleTemplateEngine 按这两份文件渲染出**同形状**的载荷 —— 形状一致是硬约束：下游落 ai_summaries 与医生复核都只认一种结构。",
+  "templates": {
+    "report_normalize": {
+      "description": "外院报告术语归一的规则兜底（模型不可达时使用）",
+      "fields": {
+        "bodyPart": {
+          "resolver": "mapping",
+          "rule": "body_part",
+          "input": "raw_body_part",
+          "comment": "外院报告里的部位写法（CHEST / ABDOMEN / PELVIS…）→ 本院习惯的部位名；查不到则用 未明确"
+        },
+        "findings": {
+          "resolver": "template",
+          "rule": "findings",
+          "input": "raw_findings",
+          "comment": "影像所见原文；外院没给就写『外院报告未提供影像所见描述』，不臆造"
+        },
+        "impression": {
+          "resolver": "template",
+          "rule": "impression",
+          "input": "raw_impression",
+          "comment": "诊断意见原文；外院没给就写『外院报告未提供诊断意见』，不臆造"
+        },
+        "studyItems": {
+          "resolver": "mapping_list",
+          "rule": "study_items",
+          "input": "raw_modality",
+          "comment": "检查项目名列表（CT 平扫 / MR 平扫…）；查不到则用兜底列表"
+        }
+      }
+    },
+    "feasibility_screener": {
+      "description": "跨院影像互认可行性初筛的规则兜底（模型不可达时使用）",
+      "fields": {
+        "decision": {
+          "resolver": "feasibility_decision",
+          "rule": "decision-values",
+          "comment": "模态与检查项目都一致 → recognizable；否则 not_recommended（**初筛建议，不是互认结论**）"
+        },
+        "reasons": {
+          "resolver": "feasibility_reasons",
+          "rule": "reasons",
+          "comment": "判据说明列表：模态匹配/不匹配 + 检查项目一致/不一致"
+        },
+        "requiresHumanReview": {
+          "resolver": "constant",
+          "value": true,
+          "comment": "互认结论永远由影像科医生拍板，规则只出建议"
+        }
+      }
+    }
+  }
+}

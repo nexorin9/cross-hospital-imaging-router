@@ -1,0 +1,123 @@
+# HL7 v2.x 段位置白名单 + 字段映射模板
+# 仅在 ModelGateway 不可达时使用（source=rule_fallback）。
+# 字段位置固定为 [segment][field][component]，与 dcm4che HL7Parser 一致。
+
+hl7:
+  # 段位置白名单（仅这些字段可被业务读取；其他字段抛 FieldNotInWhitelistException）
+  whitelist:
+    MSH:
+      - 1   # Field Separator
+      - 2   # Encoding Characters
+      - 3   # Sending Application
+      - 4   # Sending Facility
+      - 5   # Receiving Application
+      - 6   # Receiving Facility
+      - 7   # Message Datetime
+      - 9   # Message Type
+      - 10  # Message Control ID
+      - 12  # Version ID
+    PID:
+      - 3   # Patient Identifier List (MPI)
+      - 5   # Patient Name
+      - 7   # Date/Time of Birth
+    PV1:
+      - 2   # Patient Class
+      - 19  # Visit Number
+    OBR:
+      - 3   # Filler Order Number / Accession Number
+      - 4   # Universal Service Identifier (study item code)
+    ORC:
+      - 1   # Order Control
+      - 2   # Placer Order Number
+    OBX:
+      - 3   # Observation Identifier
+      - 5   # Observation Value
+
+  # 动态分隔符自适应（从 MSH-2 抽取）
+  encoding-detection:
+    field-separator: "|"
+    component-separator: "^"
+    repetition-separator: "~"
+    escape-character: "\\"
+    subcomponent-separator: "&"
+
+  # 消息类型路由表
+  message-types:
+    ORM_O01: ORM^O01
+    ADT_A04: ADT^A04
+    ADT_A08: ADT^A08
+
+# ModelGateway 不可达时的规则模板（按 kind 选择）
+# 不写「AI 推测」式的话；只做确定性归一与初筛。
+model-fallback:
+  report_normalize:
+    body_part:
+      kind: rule_template
+      mapping:
+        "CHEST": "胸部"
+        "ABDOMEN": "腹部"
+        "PELVIS": "盆腔"
+        "HEAD": "头部"
+        "KNEE": "膝关节"
+      fallback: "未明确"
+    findings:
+      kind: rule_template
+      template: "${raw_findings}"
+      fallback: "外院报告未提供影像所见描述"
+    impression:
+      kind: rule_template
+      template: "${raw_impression}"
+      fallback: "外院报告未提供诊断意见"
+    study_items:
+      kind: rule_template
+      mapping_modality:
+        "CT": "CT 平扫"
+        "MR": "MR 平扫"
+        "XA": "DSA / 血管造影"
+        "US": "超声检查"
+        "CR": "X 线摄影"
+        "DX": "数字化 X 线摄影"
+      fallback: ["外院检查"]
+
+  feasibility_screener:
+    # 判据取值（rule-templates.json 的 feasibility_decision 解析器读这一段）
+    decision-values:
+      recognizable: "recognizable"
+      not-recommended: "not_recommended"
+    recognizable-series:
+      kind: rule_template
+      logic: "若 external_modality == local_modality 且检查项目名称完全相同 → 标记为可互认"
+    not-recommended-series:
+      kind: rule_template
+      logic: "若 external_modality != local_modality 或检查项目名称不匹配 → 标记为不建议互认"
+    reasons:
+      kind: rule_template
+      template:
+        modality_match: "外院模态与本院检查项目匹配"
+        modality_mismatch: "外院模态与本院检查项目不一致，需影像科逐项复核"
+        study_item_match: "检查项目名称一致"
+        study_item_mismatch: "检查项目名称不一致"
+
+# 协议异常分类（与 FailureCodeRegistry 对齐）
+protocol-errors:
+  invalid_msh:
+    retryable: false
+    suggested_action: "检查 HL7 v2.x 消息 MSH 段是否符合 schema"
+  missing_pid:
+    retryable: false
+    suggested_action: "校验 PID-3 患者 MPI 是否存在"
+  dynamic_separator_anomaly:
+    retryable: false
+    suggested_action: "检查 MSH-2 编码字符是否合法"
+  unsupported_message_type:
+    retryable: false
+    suggested_action: "登记新消息类型到 message-types 表"
+
+# 字段位置表（供 Hl7SegmentFieldExtractor 白名单校验）
+field-positions:
+  PATIENT_MPI: PID-3
+  PATIENT_NAME: PID-5
+  PATIENT_DOB: PID-7
+  VISIT_NUMBER: PV1-19
+  STUDY_UID: OBR-3
+  STUDY_ITEM_CODE: OBR-4
